@@ -206,10 +206,19 @@ class Solver {
 	vector<int> conflicts_at_dl; // decision level => # of conflicts under it. Used for local restarts. 
 
 	// PriPro Additions
+	int LBD_threshold = 6,  // PriPro: LBD threshold for learned clauses
+	conflict_counter = 0,  // PriPro: Track conflicts for downgrades
+	downgrade_interval = 15000;  // PriPro: Conflicts between downgrades
 	vector<bool> pripro_priority; // Vector containing boolean value of whether clause should be prioritized according to PriPro.
 	vector<bool> lbd_le6; // Vector containing bool of LBD<6 for learned clauses.
+	
 	void reset_pripro_priorities() {
 		for (vector<bool>::iterator it = pripro_priority.begin(); it != pripro_priority.end(); ++it) {
+			*it = false;
+		}
+	}
+	void reset_lbd(){
+		for (vector<bool>::iterator it = lbd_le6.begin(); it != lbd_le6.end(); ++it) {
 			*it = false;
 		}
 	}
@@ -246,7 +255,6 @@ class Solver {
 		restart_threshold,
 		restart_lower,
 		restart_upper;
-
 	Lit 		asserted_lit;
 
 	float restart_multiplier;

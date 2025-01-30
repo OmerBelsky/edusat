@@ -349,6 +349,11 @@ SolverState Solver::BCP() {
 		vector<int> new_watch_list; // The original watch list minus those clauses that changed a watch. The order is maintained. 
 		int new_watch_list_idx = watches[NegatedLit].size() - 1; // Since we are traversing the watch_list backwards, this index goes down.
 		new_watch_list.resize(watches[NegatedLit].size());
+
+		partition(watches[NegatedLit].begin(), watches[NegatedLit].end(), [&](int idx) {
+			return pripro_priority[idx];
+		});
+
 		for (vector<int>::reverse_iterator it = watches[NegatedLit].rbegin(); it != watches[NegatedLit].rend() && conflicting_clause_idx < 0; ++it) {
 			Clause& c = cnf[*it];
 			Lit l_watch = c.get_lw_lit(),
@@ -479,7 +484,7 @@ int Solver::analyze(const Clause conflicting) {
 		for (const auto& lit : new_clause.cl()) {
 			max_lbd = max(max_lbd, dl - dlevel[l2v(lit)]);
 		}
-		lbd_le6.push_back(max_lbd < 6); // Learned clauses with LBD < 6 are marked to reprioritize after reset
+		lbd_le6.push_back(max_lbd < LBD_threshold); // Learned clauses with LBD < 6 are marked to reprioritize after reset
 	}
 
 
@@ -607,8 +612,12 @@ SolverState Solver::_solve() {
 			res = BCP();
 			reset_pripro_priorities();
 			if (res == SolverState::UNSAT) return res;
-			if (res == SolverState::CONFLICT)
+			if (res == SolverState::CONFLICT){
+				conflict_counter++;
+				if (conflict_counter % downgrade_interval == 0)
+					reset_lbd();
 				backtrack(analyze(cnf[conflicting_clause_idx]));
+			}
 			else break;
 		}
 		res = decide();
