@@ -197,7 +197,7 @@ class Solver {
 	trail_t trail;  // assignment stack	
 	vector<int> separators; // indices into trail showing increase in dl 	
 	vector<int> LitScore; // literal => frequency of this literal (# appearances in all clauses). 
-	vector<vector<int> > watches;  // Lit => vector of clause indices into CNF
+	vector<vector<int>> watches;  // Lit => vector of clause indices into CNF
 	vector<VarState> state;  // current assignment
 	vector<VarState> prev_state; // for phase-saving: same as state, only that it is not reset to 0 upon backtracking. 
 	vector<int> antecedent; // var => clause index in the cnf vector. For variables that their value was assigned in BCP, this is the clause that gave this variable its value. 
@@ -209,26 +209,25 @@ class Solver {
 	int LBD_threshold = 6,  // PriPro: LBD threshold for learned clauses
 	conflict_counter = 0,  // PriPro: Track conflicts for downgrades
 	downgrade_interval = 15000;  // PriPro: Conflicts between downgrades
-	vector<bool> pripro_priority; // Vector containing boolean value of whether clause should be prioritized according to PriPro.
-	vector<bool> lbd_le6; // Vector containing bool of LBD<6 for learned clauses.
-	
-	void reset_pripro_priorities() {
-		for (vector<bool>::iterator it = pripro_priority.begin(); it != pripro_priority.end(); ++it) {
-			*it = false;
+	vector<vector<int>> pripro_watches; // Vector containing boolean value of whether clause should be prioritized according to PriPro.
+	Clause last_learned_clause;
+	int last_learned_lbd = 0;
+	void reset_pripro() {
+		for (size_t i = 0; i < watches.size(); i++) {
+			std::vector<int> temp; 
+			std::swap(temp, pripro_watches[i]); 
+			watches[i].insert(watches[i].end(), std::make_move_iterator(temp.begin()), std::make_move_iterator(temp.end()));
 		}
 	}
-	void reset_lbd(){
-		for (vector<bool>::iterator it = lbd_le6.begin(); it != lbd_le6.end(); ++it) {
-			*it = false;
+
+	void downgrade_last_learned_clause(){
+		for (size_t i = 0; i < last_learned_clause.size(); i++){
+			int l = last_learned_clause.lit(i);
+			pripro_watches[l].pop_back();
+			add_clause(last_learned_clause, 0, 1, false);
 		}
 	}
-	void set_priority(){
-		for (size_t i = 0; i < lbd_le6.size(); ++i) {
-			if (lbd_le6[i]) {
-				pripro_priority[i] = true;
-			}
-		}
-	}
+
 
 	// Used by VAR_DH_MINISAT:	
 	map<double, unordered_set<Var>, greater<double>> m_Score2Vars; // 'greater' forces an order from large to small of the keys
@@ -280,7 +279,7 @@ class Solver {
 	SolverState BCP();
 	int  analyze(const Clause);
 	inline int  getVal(Var v);
-	inline void add_clause(Clause& c, int l, int r);
+	inline void add_clause(Clause& c, int l, int r, bool is_curr_learned);
 	inline void add_unary_clause(Lit l);
 	inline void assert_lit(Lit l);
 	void m_rescaleScores(double& new_score);

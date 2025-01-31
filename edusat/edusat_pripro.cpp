@@ -85,9 +85,7 @@ void Solver::read_cnf(ifstream& in) {
 				break; // unary clause. Note we do not add it as a clause. 
 			}
 			default: {
-				add_clause(c, 0, 1);
-				pripro_priority.push_back(false);
-				lbd_le6.push_back(false);
+				add_clause(c, 0, 1, false);
 			}
 			}
 			c.reset();
@@ -134,6 +132,7 @@ void Solver::initialize() {
 
 	nlits = 2 * nvars;
 	watches.resize(nlits + 1);
+	pripro_watches.resize(nlits + 1);
 	LitScore.resize(nlits + 1);
 	//initialize scores 	
 	m_activity.resize(nvars + 1);
@@ -200,15 +199,20 @@ void Solver::bumpLitScore(int lit_idx) {
 	LitScore[lit_idx]++;
 }
 
-void Solver::add_clause(Clause& c, int l, int r) {
+void Solver::add_clause(Clause& c, int l, int r, bool is_curr_learned) {
 	Assert(c.size() > 1);
 	c.lw_set(l);
 	c.rw_set(r);
 	int loc = static_cast<int>(cnf.size());  // the first is in location 0 in cnf	
 	int size = c.size();
-
-	watches[c.lit(l)].push_back(loc);
-	watches[c.lit(r)].push_back(loc);
+	if(!is_curr_learned){
+		watches[c.lit(l)].push_back(loc);
+		watches[c.lit(r)].push_back(loc);
+	}
+	else{
+		pripro_watches[c.lit(l)].push_back(loc);
+		pripro_watches[c.lit(r)].push_back(loc);
+	}
 	cnf.push_back(c);
 }
 
@@ -339,6 +343,24 @@ void Solver::test() { // tests that each clause is watched twice.
 	}
 }
 
+
+template <typename T>
+bool compareVectors(const std::vector<T>& v1, const std::vector<T>& v2) {
+	// First, check if sizes are equal
+	if (v1.size() != v2.size()) {
+		return false;
+	}
+
+	// Compare elements one by one
+	for (size_t i = 0; i < v1.size(); ++i) {
+		if (v1[i] != v2[i]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 SolverState Solver::BCP() {
 	if (verbose_now()) cout << "BCP" << endl;
 	if (verbose_now()) cout << "qhead = " << qhead << " trail-size = " << trail.size() << endl;
@@ -347,13 +369,52 @@ SolverState Solver::BCP() {
 		Assert(lit_state(NegatedLit) == LitState::L_UNSAT);
 		if (verbose_now()) cout << "propagating " << l2rl(negate(NegatedLit)) << endl;
 		vector<int> new_watch_list; // The original watch list minus those clauses that changed a watch. The order is maintained. 
+		vector<int> new_pripro_watch_list; // The original watch list minus those clauses that changed a watch. The order is maintained. 
 		int new_watch_list_idx = watches[NegatedLit].size() - 1; // Since we are traversing the watch_list backwards, this index goes down.
+		int new_pripro_watch_list_idx = pripro_watches[NegatedLit].size() - 1; // Since we are traversing the watch_list backwards, this index goes down.
 		new_watch_list.resize(watches[NegatedLit].size());
+		new_pripro_watch_list.resize(pripro_watches[NegatedLit].size());
 
-		partition(watches[NegatedLit].begin(), watches[NegatedLit].end(), [&](int idx) {
-			return pripro_priority[idx];
-		});
-
+		for (vector<int>::reverse_iterator it = pripro_watches[NegatedLit].rbegin(); it != pripro_watches[NegatedLit].rend() && conflicting_clause_idx < 0; ++it) {
+			Clause& c = cnf[*it];
+			Lit l_watch = c.get_lw_lit(),
+				r_watch = c.get_rw_lit();
+			bool binary = c.size() == 2;
+			bool is_left_watch = (l_watch == NegatedLit);
+			Lit other_watch = is_left_watch ? r_watch : l_watch;
+			int NewWatchLocation;
+			ClauseState res = c.next_not_false(is_left_watch, other_watch, binary, NewWatchLocation);
+			if (res != ClauseState::C_UNDEF) new_pripro_watch_list[new_pripro_watch_list_idx--] = *it; //in all cases but the move-watch_lit case we leave watch_lit where it is
+			switch (res) {
+			case ClauseState::C_UNSAT: { // conflict				
+				if (verbose_now()) print_state();
+				if (dl == 0) return SolverState::UNSAT;
+				conflicting_clause_idx = *it;  // this will also break the loop
+				int dist = distance(it, pripro_watches[NegatedLit].rend()) - 1; // # of entries in watches[NegatedLit] that were not yet processed when we hit this conflict. 
+				// Copying the remaining watched clauses:
+				for (int i = dist - 1; i >= 0; i--) {
+					new_pripro_watch_list[new_pripro_watch_list_idx--] = pripro_watches[NegatedLit][i];
+				}
+				if (verbose_now()) cout << "conflict" << endl;
+				break;
+			}
+			case ClauseState::C_SAT:
+				if (verbose_now()) cout << "clause is sat" << endl;
+				break; // nothing to do when clause has a satisfied literal.
+			case ClauseState::C_UNIT: { // new implication				
+				if (verbose_now()) cout << "propagating: ";
+				assert_lit(other_watch);
+				antecedent[l2v(other_watch)] = *it;
+				if (verbose_now()) cout << "new implication <- " << l2rl(other_watch) << endl;
+				break;
+			}
+			default: // replacing watch_lit
+				Assert(NewWatchLocation < static_cast<int>(c.size()));
+				int new_lit = c.lit(NewWatchLocation);
+				pripro_watches[new_lit].push_back(*it);
+				if (verbose_now()) { c.print_real_lits(); cout << " now watched by " << l2rl(new_lit) << endl; }
+			}
+		}
 		for (vector<int>::reverse_iterator it = watches[NegatedLit].rbegin(); it != watches[NegatedLit].rend() && conflicting_clause_idx < 0; ++it) {
 			Clause& c = cnf[*it];
 			Lit l_watch = c.get_lw_lit(),
@@ -398,10 +459,15 @@ SolverState Solver::BCP() {
 		watches[NegatedLit].clear();
 		new_watch_list_idx++; // just because of the redundant '--' at the end. 		
 		watches[NegatedLit].insert(watches[NegatedLit].begin(), new_watch_list.begin() + new_watch_list_idx, new_watch_list.end());
+		// resetting the list of clauses watched by this literal for the pripro watch list.
+		pripro_watches[NegatedLit].clear();
+		new_pripro_watch_list_idx++; 		
+		pripro_watches[NegatedLit].insert(pripro_watches[NegatedLit].begin(), new_pripro_watch_list.begin() + new_pripro_watch_list_idx, new_pripro_watch_list.end());
 
-		//print_watches();
+		//print_watches();	
 		if (conflicting_clause_idx >= 0) return SolverState::CONFLICT;
 		new_watch_list.clear();
+		new_pripro_watch_list.clear();
 	}
 	return SolverState::UNDEF;
 }
@@ -478,13 +544,13 @@ int Solver::analyze(const Clause conflicting) {
 		add_unary_clause(Negated_u);
 	}
 	else {
-		add_clause(new_clause, watch_lit, new_clause.size() - 1);
-		pripro_priority.push_back(true); // Newly learned clauses are prioritized
+		add_clause(new_clause, watch_lit, new_clause.size() - 1, true);
+		last_learned_clause = new_clause;
 		int max_lbd = 0;
 		for (const auto& lit : new_clause.cl()) {
 			max_lbd = max(max_lbd, dl - dlevel[l2v(lit)]);
 		}
-		lbd_le6.push_back(max_lbd < LBD_threshold); // Learned clauses with LBD < 6 are marked to reprioritize after reset
+		last_learned_lbd = max_lbd; // Learned clauses with LBD < 6 are marked to reprioritize after reset
 	}
 
 
@@ -608,14 +674,14 @@ SolverState Solver::_solve() {
 	while (true) {
 		if (timeout > 0 && cpuTime() - begin_time > timeout) return SolverState::TIMEOUT;
 		while (true) {
-			set_priority();
 			res = BCP();
-			reset_pripro_priorities();
 			if (res == SolverState::UNSAT) return res;
 			if (res == SolverState::CONFLICT){
 				conflict_counter++;
 				if (conflict_counter % downgrade_interval == 0)
-					reset_lbd();
+					reset_pripro();
+				if (last_learned_lbd > LBD_threshold)
+					downgrade_last_learned_clause();
 				backtrack(analyze(cnf[conflicting_clause_idx]));
 			}
 			else break;
@@ -643,3 +709,11 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
+
+
+//in analyze:
+//start analyze: if last learnedclause(at final index in the vector).lbd>=6 add it to less prioritized list
+//analyze()
+//end analyze:
+//learned clause->lbd
+//if leanedclause.lbd>6-> learned clause.pushback
