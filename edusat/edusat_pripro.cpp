@@ -415,6 +415,15 @@ SolverState Solver::BCP() {
 				if (verbose_now()) { c.print_real_lits(); cout << " now watched by " << l2rl(new_lit) << endl; }
 			}
 		}
+
+		// resetting the list of clauses watched by this literal for the pripro watch list.
+		pripro_watches[NegatedLit].clear();
+		new_pripro_watch_list_idx++;
+		pripro_watches[NegatedLit].insert(pripro_watches[NegatedLit].begin(), new_pripro_watch_list.begin() + new_pripro_watch_list_idx, new_pripro_watch_list.end());
+
+		if (conflicting_clause_idx >= 0) return SolverState::CONFLICT;
+		new_pripro_watch_list.clear();
+
 		for (vector<int>::reverse_iterator it = watches[NegatedLit].rbegin(); it != watches[NegatedLit].rend() && conflicting_clause_idx < 0; ++it) {
 			Clause& c = cnf[*it];
 			Lit l_watch = c.get_lw_lit(),
@@ -459,15 +468,10 @@ SolverState Solver::BCP() {
 		watches[NegatedLit].clear();
 		new_watch_list_idx++; // just because of the redundant '--' at the end. 		
 		watches[NegatedLit].insert(watches[NegatedLit].begin(), new_watch_list.begin() + new_watch_list_idx, new_watch_list.end());
-		// resetting the list of clauses watched by this literal for the pripro watch list.
-		pripro_watches[NegatedLit].clear();
-		new_pripro_watch_list_idx++; 		
-		pripro_watches[NegatedLit].insert(pripro_watches[NegatedLit].begin(), new_pripro_watch_list.begin() + new_pripro_watch_list_idx, new_pripro_watch_list.end());
 
 		//print_watches();	
 		if (conflicting_clause_idx >= 0) return SolverState::CONFLICT;
 		new_watch_list.clear();
-		new_pripro_watch_list.clear();
 	}
 	return SolverState::UNDEF;
 }
@@ -494,6 +498,8 @@ int Solver::analyze(const Clause conflicting) {
 		watch_lit = 0, // points to what literal in the learnt clause should be watched, other than the asserting one
 		antecedents_idx = 0;
 
+	bool resolvent = false;
+
 	Lit u;
 	Var v;
 	trail_t::reverse_iterator t_it = trail.rbegin();
@@ -505,11 +511,25 @@ int Solver::analyze(const Clause conflicting) {
 				marked[v] = true;
 				if (dlevel[v] == dl) ++resolve_num;
 				else { // literals from previos decision levels (roots) are entered to the learned clause.
+					if (!resolvent) {
+						// Compute LBD of current_clause
+						unordered_set<int> unique_dlevels;
+						for (const auto& lit : current_clause.cl()) {
+							if (dlevel[l2v(lit)] != 0) {
+								unique_dlevels.insert(dlevel[l2v(lit)]);
+							}
+						}
+						int lbd = unique_dlevels.size();
+						if (lbd < LBD_threshold) {
+							upgrade_clause(current_clause);
+						}
+						add_clause(current_clause, current_clause.get_lw(), current_clause.get_rw(), true);
+						resolvent = true;
+					}
 					new_clause.insert(lit);
 					if (VarDecHeuristic == VAR_DEC_HEURISTIC::MINISAT) bumpVarScore(v);
 					if (ValDecHeuristic == VAL_DEC_HEURISTIC::LITSCORE) bumpLitScore(lit);
-					int c_dl = dlevel[v]
-					;
+					int c_dl = dlevel[v];
 					if (c_dl > bktrk) {
 						bktrk = c_dl;
 						watch_lit = new_clause.size() - 1;
@@ -529,6 +549,7 @@ int Solver::analyze(const Clause conflicting) {
 		if (!resolve_num) continue;
 		int ant = antecedent[v];
 		current_clause = cnf[ant];
+		resolvent = false;
 		current_clause.cl().erase(find(current_clause.cl().begin(), current_clause.cl().end(), u));
 	} while (resolve_num > 0);
 	for (clause_it it = new_clause.cl().begin(); it != new_clause.cl().end(); ++it)
@@ -546,13 +567,15 @@ int Solver::analyze(const Clause conflicting) {
 	else {
 		add_clause(new_clause, watch_lit, new_clause.size() - 1, true);
 		last_learned_clause = new_clause;
-		int max_lbd = 0;
-		for (const auto& lit : new_clause.cl()) {
-			max_lbd = max(max_lbd, dl - dlevel[l2v(lit)]);
-		}
-		last_learned_lbd = max_lbd; // Learned clauses with LBD < 6 are marked to reprioritize after reset
-	}
 
+		// Calculate LBD
+		unordered_set<int> unique_dlevels;
+		for (const auto& lit : new_clause.cl()) {
+			unique_dlevels.insert(dlevel[l2v(lit)]);
+		}
+		int lbd = unique_dlevels.size();
+		last_learned_lbd = lbd; // Learned clauses with LBD < 6 are marked to reprioritize after reset
+	}
 
 	if (verbose_now()) {
 		cout << "Learned clause #" << cnf_size() + unaries.size() << ". ";
@@ -680,8 +703,8 @@ SolverState Solver::_solve() {
 				conflict_counter++;
 				if (conflict_counter % downgrade_interval == 0)
 					reset_pripro();
-				if (last_learned_lbd > LBD_threshold)
-					downgrade_last_learned_clause();
+				/*if (last_learned_lbd > LBD_threshold)
+					downgrade_last_learned_clause();*/
 				backtrack(analyze(cnf[conflicting_clause_idx]));
 			}
 			else break;

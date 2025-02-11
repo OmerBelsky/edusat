@@ -221,11 +221,27 @@ class Solver {
 	}
 
 	void downgrade_last_learned_clause(){
-		for (size_t i = 0; i < last_learned_clause.size(); i++){
-			int l = last_learned_clause.lit(i);
-			pripro_watches[l].pop_back();
-			add_clause(last_learned_clause, 0, 1, false);
-		}
+		int l = last_learned_clause.get_lw(), r = last_learned_clause.get_rw();
+		pripro_watches[last_learned_clause.lit(l)].pop_back();
+		pripro_watches[last_learned_clause.lit(r)].pop_back();
+		add_clause(last_learned_clause, l, r, false);
+	}
+
+	void Solver::upgrade_clause(Clause& c) {
+		int lw = c.get_lw_lit();
+		int rw = c.get_rw_lit();
+
+		auto remove_clause = [&](vector<int>& watch_list, int clause_idx) {
+			watch_list.erase(remove(watch_list.begin(), watch_list.end(), clause_idx), watch_list.end());
+			};
+
+		int clause_idx = &c - &cnf[0]; // Get the index of the current_clause in cnf
+
+		remove_clause(watches[lw], clause_idx);
+		remove_clause(watches[rw], clause_idx);
+
+		pripro_watches[lw].push_back(clause_idx);
+		pripro_watches[rw].push_back(clause_idx);
 	}
 
 
