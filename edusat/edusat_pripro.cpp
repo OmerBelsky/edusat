@@ -213,6 +213,7 @@ void Solver::add_clause(Clause& c, int l, int r, bool is_curr_learned) {
 		pripro_watches[c.lit(l)].push_back(loc);
 		pripro_watches[c.lit(r)].push_back(loc);
 	}
+	c.set_idx(loc);
 	cnf.push_back(c);
 }
 
@@ -521,9 +522,8 @@ int Solver::analyze(const Clause conflicting) {
 						}
 						int lbd = unique_dlevels.size();
 						if (lbd < LBD_threshold) {
-							upgrade_clause(current_clause);
+							upgrade_clause(cnf[current_clause.get_idx()]);
 						}
-						add_clause(current_clause, current_clause.get_lw(), current_clause.get_rw(), true);
 						resolvent = true;
 					}
 					new_clause.insert(lit);
@@ -666,6 +666,7 @@ void Solver::restart() {
 		m_curr_activity = 0; // The activity does not really become 0. When it is reset in decide() it becomes the largets activity. 
 		m_should_reset_iterators = true;
 	}
+	reset_pripro();
 	reset();
 }
 
@@ -703,8 +704,6 @@ SolverState Solver::_solve() {
 				conflict_counter++;
 				if (conflict_counter % downgrade_interval == 0)
 					reset_pripro();
-				/*if (last_learned_lbd > LBD_threshold)
-					downgrade_last_learned_clause();*/
 				backtrack(analyze(cnf[conflicting_clause_idx]));
 			}
 			else break;
