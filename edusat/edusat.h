@@ -12,14 +12,15 @@
 //#include <fstream>
 //#include <cassert>
 //#include <ctime>
+//#include <deque>
 //#include "options.h"
 //using namespace std;
 //
 //typedef int Var;
 //typedef int Lit;
-//typedef vector<Lit> clause_t;
+//typedef deque<Lit> clause_t;
 //typedef clause_t::iterator clause_it;
-//typedef vector<Lit> trail_t;
+//typedef deque<Lit> trail_t;
 //
 //#define Assert(exp) AssertCheck(exp, __func__, __LINE__)
 //
@@ -102,6 +103,7 @@
 //#include <sys/time.h>
 //#include <sys/resource.h>
 //#include <unistd.h>
+//#include <deque>
 //
 //static inline double cpuTime(void) {
 //    struct rusage ru;
@@ -189,18 +191,18 @@
 //};
 //
 //class Solver {
-//	vector<Clause> cnf; // clause DB. 
-//	vector<int> unaries; 
+//	deque<Clause> cnf; // clause DB. 
+//	deque<int> unaries; 
 //	trail_t trail;  // assignment stack	
-//	vector<int> separators; // indices into trail showing increase in dl 	
-//	vector<int> LitScore; // literal => frequency of this literal (# appearances in all clauses). 
-//	vector<vector<int> > watches;  // Lit => vector of clause indices into CNF
-//	vector<VarState> state;  // current assignment
-//	vector<VarState> prev_state; // for phase-saving: same as state, only that it is not reset to 0 upon backtracking. 
-//	vector<int> antecedent; // var => clause index in the cnf vector. For variables that their value was assigned in BCP, this is the clause that gave this variable its value. 
-//	vector<bool> marked;	// var => seen during analyze()
-//	vector<int> dlevel; // var => decision level in which this variable was assigned its value. 
-//	vector<int> conflicts_at_dl; // decision level => # of conflicts under it. Used for local restarts. 
+//	deque<int> separators; // indices into trail showing increase in dl 	
+//	deque<int> LitScore; // literal => frequency of this literal (# appearances in all clauses). 
+//	deque<deque<int> > watches;  // Lit => vector of clause indices into CNF
+//	deque<VarState> state;  // current assignment
+//	deque<VarState> prev_state; // for phase-saving: same as state, only that it is not reset to 0 upon backtracking. 
+//	deque<int> antecedent; // var => clause index in the cnf vector. For variables that their value was assigned in BCP, this is the clause that gave this variable its value. 
+//	deque<bool> marked;	// var => seen during analyze()
+//	deque<int> dlevel; // var => decision level in which this variable was assigned its value. 
+//	deque<int> conflicts_at_dl; // decision level => # of conflicts under it. Used for local restarts. 
 //
 //	// Used by VAR_DH_MINISAT:	
 //	map<double, unordered_set<Var>, greater<double>> m_Score2Vars; // 'greater' forces an order from large to small of the keys
@@ -289,14 +291,14 @@
 //	
 //// debugging
 //	void print_cnf(){
-//		for(vector<Clause>::iterator i = cnf.begin(); i != cnf.end(); ++i) {
+//		for(deque<Clause>::iterator i = cnf.begin(); i != cnf.end(); ++i) {
 //			i -> print_with_watches(); 
 //			cout << endl;
 //		}
 //	} 
 //
 //	void print_real_cnf() {
-//		for(vector<Clause>::iterator i = cnf.begin(); i != cnf.end(); ++i) {
+//		for(deque<Clause>::iterator i = cnf.begin(); i != cnf.end(); ++i) {
 //			i -> print_real_lits(); 
 //			cout << endl;
 //		}
@@ -306,7 +308,7 @@
 //		ofstream out;
 //		out.open(file_name);		
 //		out << "State: "; 
-//		for (vector<VarState>::iterator it = state.begin() + 1; it != state.end(); ++it) {
+//		for (deque<VarState>::iterator it = state.begin() + 1; it != state.end(); ++it) {
 //			char sign = (*it) == VarState::V_FALSE ? -1 : (*it) == VarState::V_TRUE ? 1 : 0;
 //			out << sign * (it - state.begin()) << " "; out << endl;
 //		}
@@ -314,16 +316,16 @@
 //
 //	void print_state() {
 //		cout << "State: "; 
-//		for (vector<VarState>::iterator it = state.begin() + 1; it != state.end(); ++it) {
+//		for (deque<VarState>::iterator it = state.begin() + 1; it != state.end(); ++it) {
 //			char sign = (*it) == VarState::V_FALSE ? -1 : (*it) == VarState::V_TRUE ? 1 : 0;
 //			cout << sign * (it - state.begin()) << " "; cout << endl;
 //		}
 //	}	
 //	
 //	void print_watches() {
-//		for (vector<vector<int> >::iterator it = watches.begin() + 1; it != watches.end(); ++it) {
+//		for (deque<deque<int> >::iterator it = watches.begin() + 1; it != watches.end(); ++it) {
 //			cout << distance(watches.begin(), it) << ": ";
-//			for (vector<int>::iterator it_c = (*it).begin(); it_c != (*it).end(); ++it_c) {
+//			for (deque<int>::iterator it_c = (*it).begin(); it_c != (*it).end(); ++it_c) {
 //				cnf[*it_c].print();
 //				cout << "; ";
 //			}

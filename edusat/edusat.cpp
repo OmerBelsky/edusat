@@ -294,7 +294,7 @@
 //	if (verbose_now()) cout << "next_not_false" << endl;
 //	
 //	if (!binary)
-//		for (vector<int>::iterator it = c.begin(); it != c.end(); ++it) {
+//		for (deque<int>::iterator it = c.begin(); it != c.end(); ++it) {
 //			LitState LitState = S.lit_state(*it);
 //			if (LitState != LitState::L_UNSAT && *it != other_watch) { // found another watch_lit
 //				loc = distance(c.begin(), it);
@@ -318,7 +318,7 @@
 //		Clause c = cnf[idx];
 //		bool found = false;
 //		for (int zo = 0; zo <= 1; ++zo) {
-//			for (vector<int>::iterator it = watches[c.cl()[zo]].begin(); !found && it != watches[c.cl()[zo]].end(); ++it) {				
+//			for (deque<int>::iterator it = watches[c.cl()[zo]].begin(); !found && it != watches[c.cl()[zo]].end(); ++it) {				
 //				if (*it == idx) {
 //					found = true;
 //					break;
@@ -342,10 +342,10 @@
 //		Lit NegatedLit = negate(trail[qhead++]);
 //		Assert(lit_state(NegatedLit) == LitState::L_UNSAT);
 //		if (verbose_now()) cout << "propagating " << l2rl(negate(NegatedLit)) << endl;
-//		vector<int> new_watch_list; // The original watch list minus those clauses that changed a watch. The order is maintained. 
+//		deque<int> new_watch_list; // The original watch list minus those clauses that changed a watch. The order is maintained. 
 //		int new_watch_list_idx = watches[NegatedLit].size() - 1; // Since we are traversing the watch_list backwards, this index goes down.
 //		new_watch_list.resize(watches[NegatedLit].size());
-//		for (vector<int>::reverse_iterator it = watches[NegatedLit].rbegin(); it != watches[NegatedLit].rend() && conflicting_clause_idx < 0; ++it) {
+//		for (deque<int>::reverse_iterator it = watches[NegatedLit].rbegin(); it != watches[NegatedLit].rend() && conflicting_clause_idx < 0; ++it) {
 //			Clause& c = cnf[*it];
 //			Lit l_watch = c.get_lw_lit(), 
 //				r_watch = c.get_rw_lit();			
@@ -517,7 +517,7 @@
 //	for (unsigned int i = 1; i <= nvars; ++i) if (state[i] == VarState::V_UNASSIGNED) {
 //		cout << "Unassigned var: " + to_string(i) << endl; // This is supposed to happen only if the variable does not appear in any clause
 //	}
-//	for (vector<Clause>::iterator it = cnf.begin(); it != cnf.end(); ++it) {
+//	for (deque<Clause>::iterator it = cnf.begin(); it != cnf.end(); ++it) {
 //		int found = 0;
 //		for(clause_it it_c = it->cl().begin(); it_c != it->cl().end() && !found; ++it_c) 
 //			if (lit_state(*it_c) == LitState::L_SAT) found = 1;
@@ -531,7 +531,7 @@
 //			Abort("Assignment validation failed", 3);
 //		}
 //	}
-//	for (vector<Lit>::iterator it = unaries.begin(); it != unaries.end(); ++it) {
+//	for (deque<Lit>::iterator it = unaries.begin(); it != unaries.end(); ++it) {
 //		if (lit_state(*it) != LitState::L_SAT) 
 //			Abort("Assignment validation failed (unaries)", 3);
 //	}

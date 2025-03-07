@@ -209,7 +209,7 @@ class Solver {
 	vector<int> conflicts_at_dl; // decision level => # of conflicts under it. Used for local restarts. 
 
 	// PriPro Additions
-	int LBD_threshold = 6,  // PriPro: LBD threshold for learned clauses
+	int LBD_threshold = 8,  // PriPro: LBD threshold for learned clauses
 	conflict_counter = 0,  // PriPro: Track conflicts for downgrades
 	downgrade_interval = 15000;  // PriPro: Conflicts between downgrades
 	vector<vector<int>> pripro_watches; // Vector containing boolean value of whether clause should be prioritized according to PriPro.
@@ -217,6 +217,7 @@ class Solver {
 	int last_learned_lbd = 0;
 	void reset_pripro() {
 		for (size_t i = 0; i < watches.size(); i++) {
+			if (pripro_watches[i].size() == 0) continue;
 			std::vector<int> temp; 
 			std::swap(temp, pripro_watches[i]); 
 			watches[i].insert(watches[i].end(), std::make_move_iterator(temp.begin()), std::make_move_iterator(temp.end()));
