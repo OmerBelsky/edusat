@@ -365,11 +365,8 @@ bool compareVectors(const std::vector<T>& v1, const std::vector<T>& v2) {
 SolverState Solver::BCP() {
 	if (verbose_now()) cout << "BCP" << endl;
 	if (verbose_now()) cout << "qhead = " << qhead << " trail-size = " << trail.size() << endl;
-
-	int pripro_qhead = qhead;
-
-	while (pripro_qhead < trail.size()) {
-		Lit NegatedLit = negate(trail[pripro_qhead++]);
+	while (qhead < trail.size()) {
+		Lit NegatedLit = negate(trail[qhead++]);
 		Assert(lit_state(NegatedLit) == LitState::L_UNSAT);
 		if (verbose_now()) cout << "propagating " << l2rl(negate(NegatedLit)) << endl;
 
@@ -424,16 +421,9 @@ SolverState Solver::BCP() {
 			pripro_watches[NegatedLit].clear();
 			new_pripro_watch_list_idx++;
 			pripro_watches[NegatedLit].insert(pripro_watches[NegatedLit].begin(), new_pripro_watch_list.begin() + new_pripro_watch_list_idx, new_pripro_watch_list.end());
-
 			if (conflicting_clause_idx >= 0) return SolverState::CONFLICT;
 			new_pripro_watch_list.clear();
 		}
-	}
-
-	while (qhead < trail.size()) {
-		Lit NegatedLit = negate(trail[qhead++]);
-		Assert(lit_state(NegatedLit) == LitState::L_UNSAT);
-		if (verbose_now()) cout << "propagating " << l2rl(negate(NegatedLit)) << endl;
 
 		vector<int> new_watch_list; // The original watch list minus those clauses that changed a watch. The order is maintained.
 		int new_watch_list_idx = watches[NegatedLit].size() - 1; // Since we are traversing the watch_list backwards, this index goes down.
